@@ -16,7 +16,8 @@ import { getRandom } from '../util/util.js'
 let editorId = 1
 
 // 构造函数
-function Editor(toolbarSelector, textSelector) {
+//* callback为点击分页小✂️回调 参数为被切行上面的所有元素数组
+function Editor(toolbarSelector, textSelector, callback) {
     if (toolbarSelector == null) {
         // 没有传入任何参数，报错
         throw new Error('错误：初始化编辑器时候未传入任何参数，请查阅文档')
@@ -25,9 +26,20 @@ function Editor(toolbarSelector, textSelector) {
     this.id = 'wangEditor-' + editorId++
     this.toolbarSelector = toolbarSelector
     this.textSelector = textSelector
-
+    this.callback = callback
     // 自定义配置
     this.customConfig = {}
+
+    //* table id属性列表，用于绑定事件
+    this.tableIdList = []
+     //* 分页线数量
+    this.lineNum = 0
+    //* 当前🖱悬停块区域的节点位置
+    this.currentIndex
+
+    // 从50高度开始累加983
+    this.lineHeight = 50
+    this.operateH = 983
 }
 
 // 修改原型
@@ -98,13 +110,35 @@ Editor.prototype = {
                 .css('width', '100%')
                 .css('height', '100%')
 
+        //* 拿到编辑区域原有内容中的表格,记录id属性,用于后面绑定table事件
+        for (let i=0; i < $children.length; i++) {
+            if ($children[i].tagName === 'TABLE') {
+                this.tableIdList.push($children[i].id);
+            }
+        }
+
+        //* 编辑表格和非表格的自定义🖱右键菜单
+        const tContextmenuId = getRandom('tContextmenu')
+        const scissorId = getRandom('scissorId')
+        $textContainerElem.append($(`
+            <div class="w-scissor">
+                <img src="/static/scissor.svg" id="${scissorId}">
+                </img>
+            </div>
+        `))
+        $textContainerElem.append($(`
+            <ul class="w-contextmenu" id="${tContextmenuId}">
+                <li data-type="merge"><a>合并单元格</a></li>
+                <li data-type="cut"><a>分割页面</a></li>
+            </ul>
+        `))
+
         // 初始化编辑区域内容
         if ($children && $children.length) {
             $textElem.append($children)
         } else {
             $textElem.append($('<p><br></p>'))
         }
-
         // 编辑区域加入DOM
         $textContainerElem.append($textElem)
 
@@ -126,7 +160,8 @@ Editor.prototype = {
         this.$textElem = $textElem
         this.toolbarElemId = toolbarElemId
         this.textElemId = textElemId
-
+        this.tContextmenuId = tContextmenuId
+        this.scissorId = scissorId
         // 记录输入法的开始和结束
         let compositionEnd = true
         $textContainerElem.on('compositionstart', () => {
@@ -138,7 +173,7 @@ Editor.prototype = {
             compositionEnd = true
         })
 
-        // 绑定 onchange
+        // 绑定 onchange 对外使用
         $textContainerElem.on('click keyup', () => {
             // 输入法结束才出发 onchange
             compositionEnd && this.change &&  this.change()
@@ -147,7 +182,7 @@ Editor.prototype = {
             this.change &&  this.change()
         })
 
-        //绑定 onfocus 与 onblur 事件
+        //绑定 onfocus 与 onblur 事件 对外使用
         if(config.onfocus || config.onblur){
             // 当前编辑器是否是焦点状态
             this.isFocus = false
@@ -252,33 +287,138 @@ Editor.prototype = {
         }
 
         const onchange = config.onchange
-        if (onchange && typeof onchange === 'function'){
-            // 触发 change 的有三个场景：
-            // 1. $textContainerElem.on('click keyup')
-            // 2. $toolbarElem.on('click')
-            // 3. editor.cmd.do()
-            this.change = function () {
-                // 判断是否有变化
-                let currentHtml = this.txt.html()
 
-                if (currentHtml.length === beforeChangeHtml.length) {
-                    // 需要比较每一个字符
-                    if (currentHtml === beforeChangeHtml) {
-                        return
-                    }
-                }
+        //* 设置分页线
+        const setPagingLine = () => {
+            let el = this.$textElem[0]
+            // 去除padding 操作区域高度983px
+            let num = el.clientHeight % this.operateH === 0 ? parseInt(el.clientHeight/this.operateH) - 1 : parseInt(el.clientHeight/this.operateH)
 
-                // 执行，使用节流
-                if (onChangeTimeoutId) {
-                    clearTimeout(onChangeTimeoutId)
-                }
-                onChangeTimeoutId = setTimeout(() => {
-                    // 触发配置的 onchange 函数
-                    onchange(currentHtml)
-                    beforeChangeHtml = currentHtml
-                }, onchangeTimeout)
+            // 先把之前插入的分页线remove
+            let lines = document.getElementsByClassName('pagingLine')
+            // 不能直接在for判断中用lines.length 会变化
+            const len = lines.length
+            for (let i=0; i < len; i++) {
+              this.$textContainerElem[0].removeChild(lines[0])
+            }
+
+            // 重置初始高度 初始50为顶部padding
+            this.lineHeight = 50
+            for ( let j = 0; j < num; j ++ ) {
+                this.lineHeight = this.lineHeight + this.operateH
+                this.$textContainerElem.append($(`
+                    <div class="pagingLine" style="top: ${this.lineHeight}px"></div>
+                `))
             }
         }
+
+        // 触发 change 的有三个场景：
+        // 1. $textContainerElem.on('click keyup')
+        // 2. $toolbarElem.on('click')
+        // 3. editor.cmd.do()
+        this.change = function () {
+            // 判断是否有变化
+            let currentHtml = this.txt.html()
+
+            if (currentHtml.length === beforeChangeHtml.length) {
+                // 需要比较每一个字符
+                if (currentHtml === beforeChangeHtml) {
+                    return
+                }
+            }
+
+            // 执行，使用节流
+            if (onChangeTimeoutId) {
+                clearTimeout(onChangeTimeoutId)
+            }
+            onChangeTimeoutId = setTimeout(() => {
+                // 触发配置的 onchange 函数
+                if ( onchange && typeof onchange === 'function' ) {
+                    onchange(currentHtml)
+                }
+                setPagingLine()
+                beforeChangeHtml = currentHtml
+            }, onchangeTimeout)
+        }
+
+
+        //* -------- 监听非表格切割事件 --------
+        this.$textElem.on('mouseenter', () => {
+            let scissor = document.getElementById(this.scissorId)
+            scissor.style.display = 'inline-block'
+
+            this.$textElem.on('mousemove',e => {
+                let node = e.path[0]
+                if (node.tagName === 'P') {
+                    // 如果鼠标移动到编辑区域的内容上定位分页✂️位置
+                    scissor.style.top = `${node.offsetTop}px`
+                    // 不是在表格内的行，先将表格记录置为null
+                    this.currentTdIndex = null
+
+                    let parentNode = node.parentNode
+                    for (let i=0; i < parentNode.children.length; i++) {
+                        if (parentNode.children[i] === node) {
+                            this.currentIndex = i
+                            break
+                        }
+                    }
+                }
+            })
+        })
+        this.$textContainerElem.on('mouseleave', () => {
+            this.$textElem.offType(this.$textElem, 'mousemove')
+            let scissor = document.getElementById(this.scissorId)
+            scissor.style.display = 'none'
+        })
+        // 拿到小✂️,绑定点击调用回调切割事件
+        let $scissor = $(document.getElementById(this.scissorId))
+
+        $scissor.on('click', e => {
+            $scissor.css('display', 'none')
+            let removeList = []
+
+            // 在表格内切割的情况 这里不要用!!，index可能为0
+            if (this.currentTdIndex === null) {
+                for (let i=0; i < this.currentIndex; i++) {
+                    removeList.push(this.$textElem[0].removeChild(this.$textElem[0].children[0]))
+                }
+            } else {
+                const table = this.$textElem[0].children[this.currentIndex]
+                const tbody = table.children[0]
+                for (let i=0; i < this.currentIndex; i++) {
+                    removeList.push(this.$textElem[0].removeChild(this.$textElem[0].children[0]))
+                }
+                let id = getRandom('table-index-')
+                let html = `<table border="0" width="100%" cellpadding="0" cellspacing="0" id="${id}">`
+                // 表头
+                html += tbody.children[0].outerHTML
+                // 被切行上面的tr
+                for (let r = 1; r < this.currentTdIndex; r++) {
+                    let tr = tbody.removeChild(tbody.children[1])
+                    html += tr.outerHTML
+                }
+                html += '</table><p><br></p>'
+
+                removeList.push($(html)[0])
+            }
+
+            // 获取当前page的索引
+            let pageIndex
+            let pages = this.$textContainerElem[0].parentNode.children
+            for (let i = 0; i < pages.length; i++) {
+                if (pages[i] === this.$textContainerElem[0]) {
+                    pageIndex = i
+                    break
+                }
+            }
+
+            this.callback && this.callback(removeList, pageIndex);
+        })
+
+        //* -------- 为表格绑定事件 --------
+        const Table = this.menus.menus.table
+
+        this.tableIdList.forEach(id => Table._bindEvents(id))
 
         // -------- 绑定 onblur 事件 --------
         const onblur = config.onblur
@@ -297,6 +437,13 @@ Editor.prototype = {
             }
         }
 
+        // -------- 绑定 onClick 事件 --------
+        const onclick = config.onclick
+        if (onclick && typeof onclick === 'function') {
+            this.onclick = function () {
+              onclick()
+            }
+        }
     },
 
     // 创建编辑器
@@ -327,6 +474,13 @@ Editor.prototype = {
 
         // 绑定事件
         this._bindEvent()
+    },
+
+    //* 第三页自动填充的表单数据
+    fillData(data) {
+      const Table = this.menus.menus.table
+
+      Table. _fillData(data)
     },
 
     // 解绑所有事件（暂时不对外开放）

@@ -39,11 +39,12 @@ function DomElement(selector) {
     if (!selector) {
         return
     }
-
     // selector 本来就是 DomElement 对象，直接返回
     if (selector instanceof DomElement) {
         return selector
     }
+    // 记录当前示例的所有事件绑定
+    this.eventList = []
 
     this.selector = selector
     const nodeType = selector.nodeType
@@ -156,6 +157,13 @@ DomElement.prototype = {
                     fn: fn
                 })
 
+                //* 用于方便单独解绑某个DomElement上的事件
+                this.eventList.push({
+                  elem: elem,
+                  type: type,
+                  fn: fn
+                })
+
                 if (!selector) {
                     // 无代理
                     elem.addEventListener(type, fn)
@@ -177,6 +185,15 @@ DomElement.prototype = {
     off: function (type, fn) {
         return this.forEach(elem => {
             elem.removeEventListener(type, fn)
+        })
+    },
+
+    //* 取消当前实例的对某种类型事件绑定的所有监听
+    offType: function (el, type) {
+        return el.eventList.forEach(item => {
+            if (item.type == type) {
+                el[0].removeEventListener(item.type, item.fn)
+            }
         })
     },
 

@@ -14,10 +14,9 @@ function Command(editor) {
 Command.prototype = {
     constructor: Command,
 
-    // 执行命令
-    do: function (name, value) {
+    // 执行命令  增加了callback
+    do: function (name, value, callback) {
         const editor = this.editor
-
         // 使用 styleWithCSS
         if (!editor._useStyleWithCSS) {
             document.execCommand('styleWithCSS', null, true)
@@ -36,7 +35,7 @@ Command.prototype = {
         const _name = '_' + name
         if (this[_name]) {
             // 有自定义事件
-            this[_name](value)
+            this[_name](value, callback)
         } else {
             // 默认 command
             this._execCommand(name, value)
@@ -54,7 +53,7 @@ Command.prototype = {
     },
 
     // 自定义 insertHTML 事件
-    _insertHTML: function (html) {
+    _insertHTML: function (html, callback) {
         const editor = this.editor
         const range = editor.selection.getRange()
 
@@ -68,7 +67,12 @@ Command.prototype = {
         } else if (range.pasteHTML) {
             // IE <= 10
             range.pasteHTML(html)
-        } 
+        }
+
+        //* 插入表格时添加右键点击事件时修改插入的callback
+        setTimeout(() => {
+          callback && callback()
+        }, 500);
     },
 
     // 插入 elem

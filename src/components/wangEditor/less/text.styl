@@ -1,6 +1,28 @@
 .w-e-text-container {
     position: relative;
-
+    .w-scissor {
+        position: absolute;
+        top: 0;
+        left: -25px;
+        width: 24px;
+        height: 100%;
+        img {
+            width: 24px;
+            transform: rotate(90deg);
+            position: absolute;
+            top: 60px;
+            cursor: pointer;
+            display: none;
+        }
+    }
+    .pagingLine {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(to right, #f00, #f00 22px, transparent 22px, transparent);
+        background-size: 30px 100%;
+    }
     .w-e-progress {
         position: absolute;
         background-color: #1e88e5;
@@ -8,10 +30,42 @@
         left: 0;
         height: 1px;
     }
+    .w-contextmenu {
+        display: none;
+        background: #fff;
+        width: 100px;
+        border: 1px solid #ccc;
+        position: fixed;
+        box-shadow: 0 0 5px rgba(0,0,0,.2);
+        padding: 2px 2px;
+        transition: all .1s ease;
+        margin: 0;
+        z-index: 1;
+        li {
+            list-style: none;
+            width: 100%;
+            &:first-of-type{
+                border-radius: 5px 5px 0 0;
+            }
+            a {
+              display: inline-block;
+              text-decoration: none;
+              color: #555;
+              width: 100%;
+              padding: 10px 0;
+              padding-left: 6px;
+              &:hover, &:active {
+                  background: #eee;
+                  color: #0AAF88;
+                  cursor: pointer;
+              }
+          }
+        }
+    }
 }
 .w-e-text {
     padding: 0 10px;
-    overflow-y: scroll;
+    overflow-y: hidden;
 
     p,h1,h2,h3,h4,h5,table,pre {
         margin: 10px 0;
@@ -48,17 +102,19 @@
     }
 
     table {
-        border-top: 1px solid #ccc;
-        border-left: 1px solid #ccc;
-
+        border-top: 1px solid #000;
+        border-left: 1px solid #000;
+        border-collapse: collapse;
+        table-layout: fixed;
         td,th {
-            border-bottom: 1px solid #ccc;
-            border-right: 1px solid #ccc;
+            border-bottom: 1px solid #000;
+            border-right: 1px solid #000;
             padding: 3px 5px;
+            word-break: break-word;
         }
 
         th {
-            border-bottom: 2px solid #ccc;
+            border-bottom: 2px solid #000;
             text-align: center;
         }
     }
