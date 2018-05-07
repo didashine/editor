@@ -129,7 +129,6 @@ Editor.prototype = {
         $textContainerElem.append($(`
             <ul class="w-contextmenu" id="${tContextmenuId}">
                 <li data-type="merge"><a>合并单元格</a></li>
-                <li data-type="cut"><a>分割页面</a></li>
             </ul>
         `))
 
@@ -293,13 +292,14 @@ Editor.prototype = {
             let el = this.$textElem[0]
             // 去除padding 操作区域高度983px
             let num = el.clientHeight % this.operateH === 0 ? parseInt(el.clientHeight/this.operateH) - 1 : parseInt(el.clientHeight/this.operateH)
-
             // 先把之前插入的分页线remove
             let lines = document.getElementsByClassName('pagingLine')
             // 不能直接在for判断中用lines.length 会变化
             const len = lines.length
             for (let i=0; i < len; i++) {
-              this.$textContainerElem[0].removeChild(lines[0])
+              if (lines[0].parentNode === this.$textContainerElem[0]) {
+                this.$textContainerElem[0].removeChild(lines[0])
+              }
             }
 
             // 重置初始高度 初始50为顶部padding
@@ -336,11 +336,38 @@ Editor.prototype = {
                 if ( onchange && typeof onchange === 'function' ) {
                     onchange(currentHtml)
                 }
+                //* 每次改变调整分页线
                 setPagingLine()
                 beforeChangeHtml = currentHtml
             }, onchangeTimeout)
         }
 
+        //* --------监听 html drag 事件--------
+        this.$textElem.on('dragenter', e => {
+            if (e.target.tagName === 'P') {
+                let node = e.target;
+                node.style.border = "2px solid #D9E7F6"
+            }
+        })
+        this.$textElem.on('dragleave', e => {
+            if (e.target.tagName === 'P') {
+                let node = e.target;
+                node.style.border = "none"
+            }
+        })
+        this.$textElem.on('dragover', e => {
+            e.preventDefault();
+            return true;
+        })
+        this.$textElem.on('drop', e => {
+            if (e.target.tagName === 'P') {
+                let value = e.target.innerHTML
+                // text为外部设置可以拖拽的dom在dropstart时存的value
+                value = value === '<br>' ? e.dataTransfer.getData("text") : value + e.dataTransfer.getData("text")
+                e.target.style.border = "none"
+                e.target.innerHTML = value
+            }
+        })
 
         //* -------- 监听非表格切割事件 --------
         this.$textElem.on('mouseenter', () => {
@@ -477,7 +504,7 @@ Editor.prototype = {
     },
 
     //* 第三页自动填充的表单数据
-    fillData(data) {
+    fillData: function(data) {
       const Table = this.menus.menus.table
 
       Table. _fillData(data)
